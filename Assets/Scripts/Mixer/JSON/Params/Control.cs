@@ -7,7 +7,7 @@ using System;
 public class Control
 {
     [SerializeField]
-    string kind = "button";
+    string kind;
     [SerializeField]
     string controlID;
     [SerializeField]
@@ -17,8 +17,9 @@ public class Control
     [SerializeField]
     int cost = 10;
 
-    public Control(string controlID, string text, Position position)
+    public Control(string kind, string controlID, string text, Position position)
     {
+        this.kind = kind;
         this.controlID = controlID;
         this.text = text;
         this.position = new Position[] {

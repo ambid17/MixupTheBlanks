@@ -23,7 +23,6 @@ public class GameManager : MonoBehaviour
     #region Voting Variables
     public GameObject votingPanel;
     public Text votingText;
-    List<MixerScene> buttonScenes;
     #endregion
 
     #region CountDown Variables
@@ -37,6 +36,9 @@ public class GameManager : MonoBehaviour
     public GameObject topScoreOverallText;
 
     public List<MixerButton> answerButtons;
+    public MixerInput mixerInput;
+    [SerializeField]
+    public List<MixerScene> mixerScenes;
     #endregion
 
     #region Logic Variables
@@ -68,7 +70,8 @@ public class GameManager : MonoBehaviour
     {
         MixerInteractive.GoInteractive();
 
-        MixerInteractive.OnInteractivityStateChanged += CheckMixerInitialized;    }
+        MixerInteractive.OnInteractivityStateChanged += CheckMixerInitialized;
+    }
 
     void CheckMixerInitialized(object sender, InteractivityStateChangedEventArgs e)
     {
@@ -99,16 +102,9 @@ public class GameManager : MonoBehaviour
     {
         if(e.ControlID == "Input")
         {
-            if (MixerInteractive.HasSubmissions("Input"))
-            {
-                var results = MixerInteractive.GetText("Input");
-                for (int i = 0; i < results.Count; i++)
-                {
-                    Player player = GetPlayerByName(results[i].Participant.UserName);
-                    player.answer = results[i].Text;
-                    results[i].Participant.Group = MixerInteractive.GetGroup("default");
-                }
-            }
+            Player player = GetPlayerByName(e.Participant.UserName);
+            player.answer = e.Text;
+            e.Participant.Group = MixerInteractive.GetGroup("default");
         }
     }
 
@@ -132,12 +128,8 @@ public class GameManager : MonoBehaviour
                     Player playerToAddScore = GetPlayerForControlID(controlID);
                     playerToAddScore.currentScore++;
                     playerToAddScore.overallScore++;
-
-                    //This doesn't change the user's group
-                    Player playerWhoVoted = GetPlayerByName(e.Participant.UserName);
-                    InteractiveParticipant participant = GetParticipant(playerWhoVoted.playerName);
-                    participant.Group = MixerInteractive.GetGroup("default"); 
                     
+                    e.Participant.Group = MixerInteractive.GetGroup("default");
                 }
             }
         }
@@ -169,6 +161,7 @@ public class GameManager : MonoBehaviour
         Clean();
         ChangeState(UIState.prompt);
         SetupPrompt();
+        CreateInput();
     }
 
     void SetupPrompt()
@@ -232,8 +225,42 @@ public class GameManager : MonoBehaviour
     void Clean()
     {
         CleanScoresAndAnswers();
+        DeleteInputMessage();
     }
-    #endregion 
+
+    void CreateInput()
+    {
+        mixerInput = new MixerInput("prompt", 1,1,5,5);
+        CreateInputMessage();
+    }
+
+    void DeleteInputMessage()
+    {
+        Parameters parameters = new DeleteControlsParams("prompt", new string[] { "Input" });
+
+        JSONMessage message = new JSONMessage(JSONMessage.MethodType.deleteControls, parameters);
+
+        SendJSONMessage(message);
+    }
+
+    void CreateInputMessage()
+    {
+        List<string> controlIDs = new List<string>() { "Input" };
+        List<string> texts = new List<string>() {"Input answer"};
+        Position[] positions = new Position[] {new Position(mixerInput.position.size, mixerInput.position.width, mixerInput.position.height, mixerInput.position.x, mixerInput.position.x)};
+
+        Parameters parameters = new ControlsParams("prompt"
+            , "Input"
+            , new List<string>() { "Input" }
+            , new List<string>() { "Input" }
+            , new Position[] {new Position("Large", 5,5,1,1)}
+            );
+
+        JSONMessage message = new JSONMessage(JSONMessage.MethodType.createControls, parameters);
+
+        SendJSONMessage(message);
+    }
+    #endregion
 
     //TODO in CreateMixerButtons(), don't answer button for current user
     #region VotingPhase
@@ -241,11 +268,9 @@ public class GameManager : MonoBehaviour
     {
         ChangeState(UIState.voting);
         CreateMixerButtons();
-        //SetupSceneChangeButtons();
-        SendButtonMessage();
+        CreateMixerScenes();
+        CreateScenesMessage();
     }
-
-    
     
     void CreateMixerButtons()
     {
@@ -254,16 +279,11 @@ public class GameManager : MonoBehaviour
 
         if (playersWhoResponded.Count > 0)
         {
-            buttonScenes = new List<MixerScene>();
-            List<MixerButton> answerButtons = new List<MixerButton>();
-
             foreach (Player player in playersWhoResponded)
             {
                 MixerButton newButton = new MixerButton(player);
                 answerButtons.Add(newButton);
             }
-
-            CreateMixerScenes(answerButtons);
         }
         else
         {
@@ -271,80 +291,110 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void CreateMixerScenes(List<MixerButton> buttons)
+    void CreateMixerScenes()
     {
-        Shuffle(buttons);
-        int buttonsPerScene = buttonsPerColumn * buttonsPerRow;
-        int numberOfScenes = (buttons.Count / buttonsPerScene) + 1;
+        mixerScenes = new List<MixerScene>();
         
-
-        for (int sceneId = 0; sceneId < numberOfScenes; sceneId++)
+        int buttonsPerScene = buttonsPerColumn * buttonsPerRow;
+        
+        foreach(Player player in players)
         {
-            MixerScene newScene = new MixerScene(sceneId);
-            buttonScenes.Add(newScene);
-            
-            for (int x = 0; x < buttonsPerRow; x++)
+            List<MixerButton> buttons = GetShuffledMixerButtons(player);
+            int numberOfScenes = (buttons.Count / buttonsPerScene) + 1;
+
+            for (int sceneId = 0; sceneId < numberOfScenes; sceneId++)
             {
-                for (int y = 0; y < buttonsPerColumn; y++)
+                string scene = player.playerName + sceneId;
+                MixerScene newScene = new MixerScene(scene, player);
+
+                for (int x = 0; x < buttonsPerRow; x++)
                 {
-                    int currentIndex = x + (y * buttonsPerRow);
-                    if (currentIndex < buttons.Count)
+                    for (int y = 0; y < buttonsPerColumn; y++)
                     {
-                        MixerButton button = buttons[currentIndex];
-                        button.position.x = x * buttonWidth;
-                        button.position.y = y * buttonHeight;
-                        button.position.width = buttonWidth;
-                        button.position.height = buttonHeight;
-                        button.scene = sceneId;
-                        newScene.buttons.Add(button);
-                        answerButtons.Add(button);
-                    } 
+                        int currentIndex = x + (y * buttonsPerRow);
+                        if(currentIndex >= buttons.Count)
+                        {
+                            continue;
+                        }
+                        else if (currentIndex < buttons.Count)
+                        {
+                            MixerButton button = buttons[currentIndex];
+                            button.position = new Position("Large", x * buttonWidth, y * buttonHeight, buttonWidth, buttonHeight);
+                            button.scene = scene;
+                            newScene.buttons.Add(button);
+                        }
+                    }
+                }
+                mixerScenes.Add(newScene);
+            }
+        }
+        SetSceneTraversal();
+    }
+
+    void SetSceneTraversal()
+    {
+        for(int i = 0; i < mixerScenes.Count; i++)
+        {
+            if (i == 0)
+            {
+                mixerScenes[i].previousScene = null;
+                if(mixerScenes.Count > 1)
+                {
+                    mixerScenes[i].nextScene = mixerScenes[i + 1];
                 }
             }
+            else if (i > 0 && i < mixerScenes.Count-1)
+            {
+                mixerScenes[i].previousScene = mixerScenes[i - 1];
+                mixerScenes[i].nextScene = mixerScenes[i + 1];
+            }
+            else if(i > 0 && i == mixerScenes.Count-1)
+            {
+                mixerScenes[i].previousScene = mixerScenes[i - 1];
+                mixerScenes[i].nextScene = null;
+            }
         }
+    }
+
+    void CreateScenesMessage()
+    {
+        ControlsParams[] controlsParams = new ControlsParams[mixerScenes.Count];
+
+        foreach(MixerScene scene in mixerScenes)
+        {
+            AddSceneChangeButtons(scene);
+            List<string> controlIDs = new List<string>();
+            List<string> texts = new List<string>();
+            Position[] positions = new Position[scene.buttons.Count];
+
+            foreach (MixerButton button in scene.buttons)
+            {
+                controlIDs.Add(button.player.answer);
+                texts.Add(button.player.answer);
+                positions[scene.buttons.IndexOf(button)] = button.position;
+            }
+            controlsParams[mixerScenes.IndexOf(scene)] = new ControlsParams(scene.sceneID, "button", controlIDs, texts, positions);
+            
+        }
+
+        Parameters parameters = new CreateScenesParams(controlsParams);
+        JSONMessage message = new JSONMessage(JSONMessage.MethodType.createScenes, parameters);
+
+        SendJSONMessage(message);
     }
     
-    void SendButtonMessage()
+    void AddSceneChangeButtons(MixerScene scene)
     {
-        List<string> controlIDs = new List<string>();
-        List<string> texts = new List<string>();
-        Position[] positions = new Position[answerButtons.Count];
+        MixerButton backButton = new MixerButton(scene.player);
+        backButton.position = new Position("Large", 16, 16, 4, 4);
+        backButton.scene = scene.sceneID;
 
-        foreach (MixerButton button in answerButtons)
-        {
-            controlIDs.Add(button.player.answer + "_");
-            texts.Add(button.player.answer);
-            positions[answerButtons.IndexOf(button)] = button.position;
-        }
+        MixerButton nextButton = new MixerButton(scene.player);
+        nextButton.position = new Position("Large", 20, 16, 4, 4);
+        nextButton.scene = scene.sceneID;
 
-        JSONMessage json = new JSONMessage(currentState.ToString(), controlIDs, texts, positions);
-        
-        string message = json.SaveToString();
-        Debug.Log("message " + message);
-        MixerInteractive.SendInteractiveMessage(message);
-    }
-
-    //TODO: don't think we can do this, maybe the user just gets
-    //a random subset of the answers to choose from instead
-    void SetupSceneChangeButtons()
-    {
-        if (MixerInteractive.HasSubmissions("<<"))
-        {
-            var results = MixerInteractive.GetText("<<");
-            foreach (InteractiveTextResult result in results)
-            {
-                //change group?
-            }
-        }
-
-        if (MixerInteractive.HasSubmissions(">>"))
-        {
-            var results = MixerInteractive.GetText(">>");
-            foreach (InteractiveTextResult result in results)
-            {
-                //change group?
-            }
-        }
+        scene.buttons.Add(backButton);
+        scene.buttons.Add(nextButton);
     }
     #endregion
 
@@ -352,14 +402,7 @@ public class GameManager : MonoBehaviour
     void ScoringPhase()
     {
         ChangeState(UIState.@default);
-        GameModeVoting();
         ShowTopScores();
-    }
-
-    //TODO
-    void GameModeVoting()
-    {
-
     }
 
     void ShowTopScores()
@@ -457,7 +500,7 @@ public class GameManager : MonoBehaviour
 
     Player GetPlayerForControlID(string controlID)
     {
-        string playerName = controlID.Substring(0, controlID.Length - 1); //chop off the "_" at the end
+        string playerName = controlID;
         foreach (Player player in players)
         {
             if (player.answer == playerName)
@@ -557,18 +600,34 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region UIUtilities
-    public static void Shuffle(List<MixerButton> list)
+    public void SendJSONMessage(JSONMessage JSONmessage)
     {
-        int n = list.Count;
-        while (n > 1)
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public List<MixerButton> GetShuffledMixerButtons(Player player)
+    {
+        List<MixerButton> list = answerButtons;
+        var random = new System.Random();
+        IOrderedEnumerable<MixerButton> result = list.OrderBy(item => random.Next());
+        List<MixerButton> randomizedList = result.ToList();
+
+        MixerButton buttonToRemove = null;
+        foreach(MixerButton button in randomizedList)
         {
-            n--;
-            System.Random random = new System.Random();
-            int k = random.Next(n + 1);
-            MixerButton value = list[k];
-            list[k] = list[n];
-            list[n] = value;
+            if(button.player.playerName == player.playerName)
+            {
+                buttonToRemove = button;
+            }
         }
+
+        if(buttonToRemove != null)
+        {
+            randomizedList.Remove(buttonToRemove);
+        }
+
+        return randomizedList;
     }
     
     IEnumerator CountdownTimer(int time)

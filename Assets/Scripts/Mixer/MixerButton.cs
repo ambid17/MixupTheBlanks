@@ -1,22 +1,16 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
-public class MixerButton
+[Serializable]
+public class MixerButton : MixerControl
 {
-    public Position position;
-    public int scene;
+    [SerializeField]
     public Player player;
 
-    public MixerButton(Player player, int x, int y, int width, int height)
+    public MixerButton(Player player) : base()
     {
         this.player = player;
-        position = new Position("large", width, height, x, y);
-    }
-
-    public MixerButton(Player player)
-    {
-        this.player = player;
-        position = new Position("large", 0, 0, 0, 0);
     }
 }

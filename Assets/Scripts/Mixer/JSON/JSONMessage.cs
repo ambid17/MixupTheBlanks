@@ -10,17 +10,23 @@ public class JSONMessage {
     [SerializeField]
     int id = 123;
     [SerializeField]
-    string method = "createControls";
+    string method;
 
     [SerializeField]
     Parameters @params;
-    public JSONMessage(string sceneID, List<string> controlIDs, List<string> texts, Position[] position)
+    public JSONMessage(MethodType methodType, Parameters parameters)
     {
-        @params = new Parameters(sceneID, controlIDs, texts, position);
+        method = methodType.ToString();
+        @params = parameters;
     }
 
     public string SaveToString()
     {
         return JsonUtility.ToJson(this);
+    }
+
+    public enum MethodType
+    {
+        createControls, deleteControls, createScenes, deleteScene, onSceneDelete
     }
 }
