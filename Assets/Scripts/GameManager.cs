@@ -156,8 +156,7 @@ public class GameManager : MonoBehaviour
 
     //TODO create JSON to create empty input box with submit button
     #region PromptPhase
-    void PromptPhase()
-    {
+    void PromptPhase(){
         Clean();
         ChangeState(UIState.prompt);
         SetupPrompt();
@@ -167,8 +166,7 @@ public class GameManager : MonoBehaviour
     void SetupPrompt()
     {
         PromptType promptType = getPromptType();
-        if (promptType == PromptType.image)
-        {
+        if (promptType == PromptType.image){
             textPrompt.SetActive(false);
             imagePrompt.SetActive(true);
             Sprite prompt = imagePrompts[UnityEngine.Random.Range(0, imagePrompts.Count)];
@@ -184,8 +182,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    PromptType getPromptType()
-    {
+    PromptType getPromptType(){
         Array promptValues = System.Enum.GetValues(typeof(PromptType));
         System.Random random = new System.Random();
         return (PromptType)promptValues.GetValue(random.Next(promptValues.Length));
@@ -222,43 +219,39 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void Clean()
-    {
+    void Clean(){
         CleanScoresAndAnswers();
         DeleteInputMessage();
     }
 
-    void CreateInput()
-    {
+    void CreateInput(){
         mixerInput = new MixerInput("prompt", 1,1,5,5);
         CreateInputMessage();
     }
 
-    void DeleteInputMessage()
-    {
+    void DeleteInputMessage(){
         Parameters parameters = new DeleteControlsParams("prompt", new string[] { "Input" });
 
-        JSONMessage message = new JSONMessage(JSONMessage.MethodType.deleteControls, parameters);
+        //JSONMessage message = new JSONMessage(JSONMessage.MethodType.deleteControls, parameters);
 
-        SendJSONMessage(message);
+        //SendJSONMessage(message);
     }
 
-    void CreateInputMessage()
-    {
+    void CreateInputMessage(){
         List<string> controlIDs = new List<string>() { "Input" };
         List<string> texts = new List<string>() {"Input answer"};
         Position[] positions = new Position[] {new Position(mixerInput.position.size, mixerInput.position.width, mixerInput.position.height, mixerInput.position.x, mixerInput.position.x)};
 
-        Parameters parameters = new ControlsParams("prompt"
-            , "Input"
-            , new List<string>() { "Input" }
-            , new List<string>() { "Input" }
+        ControlsParams parameters = new ControlsParams("prompt"
+            , "input"
+            , new List<string>() { "input" }
+            , new List<string>() { "input" }
             , new Position[] {new Position("Large", 5,5,1,1)}
             );
 
-        JSONMessage message = new JSONMessage(JSONMessage.MethodType.createControls, parameters);
-
-        SendJSONMessage(message);
+        JSONMessage1 message = new JSONMessage1(JSONMessage1.MethodType.createControls, parameters);
+		
+        SendJSONMessage1(message);
     }
     #endregion
 
@@ -378,9 +371,9 @@ public class GameManager : MonoBehaviour
         }
 
         Parameters parameters = new CreateScenesParams(controlsParams);
-        JSONMessage message = new JSONMessage(JSONMessage.MethodType.createScenes, parameters);
+       // JSONMessage message = new JSONMessage(JSONMessage.MethodType.createScenes, parameters);
 
-        SendJSONMessage(message);
+       // SendJSONMessage(message);
     }
     
     void AddSceneChangeButtons(MixerScene scene)
@@ -572,9 +565,10 @@ public class GameManager : MonoBehaviour
     {
         InteractiveGroup groupToPut = MixerInteractive.GetGroup(group);
         List<InteractiveParticipant> participants = GetAllParticipants();
+		Debug.Log(group);
         foreach (InteractiveParticipant participant in participants)
         {
-            if(participant.Group != groupToPut)
+            if(participant.Group != groupToPut && participant.State.Equals(InteractiveParticipantState.Joined))
                 participant.Group = groupToPut;
         }
     }
@@ -600,51 +594,46 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region UIUtilities
-    public void SendJSONMessage(JSONMessage JSONmessage)
-    {
+    public void SendJSONMessage(JSONMessage JSONmessage){
         string message = JSONmessage.SaveToString();
         Debug.Log("JSONMESSAGE: " + message);
         MixerInteractive.SendInteractiveMessage(message);
     }
-    public List<MixerButton> GetShuffledMixerButtons(Player player)
-    {
+	public void SendJSONMessage1(JSONMessage1 JSONmessage) {
+		string message = JSONmessage.SaveToString();
+		Debug.Log("JSONMESSAGE: " + message);
+		MixerInteractive.SendInteractiveMessage(message);
+	}
+	public List<MixerButton> GetShuffledMixerButtons(Player player){
         List<MixerButton> list = answerButtons;
         var random = new System.Random();
         IOrderedEnumerable<MixerButton> result = list.OrderBy(item => random.Next());
         List<MixerButton> randomizedList = result.ToList();
 
         MixerButton buttonToRemove = null;
-        foreach(MixerButton button in randomizedList)
-        {
-            if(button.player.playerName == player.playerName)
-            {
+        foreach(MixerButton button in randomizedList){
+            if(button.player.playerName == player.playerName){
                 buttonToRemove = button;
             }
         }
 
-        if(buttonToRemove != null)
-        {
+        if(buttonToRemove != null){
             randomizedList.Remove(buttonToRemove);
         }
 
         return randomizedList;
     }
     
-    IEnumerator CountdownTimer(int time)
-    {
+    IEnumerator CountdownTimer(int time){
         float currentCountdown = time;
-        while (currentCountdown > 0)
-        {
-            if (currentState == UIState.prompt)
-            {
+        while (currentCountdown > 0){
+            if (currentState == UIState.prompt){
                 countdownText.text = "Make us laugh: ";
             }
-            else if (currentState == UIState.voting)
-            {
+            else if (currentState == UIState.voting){
                 countdownText.text = "";
             }
-            else if (currentState == UIState.@default)
-            {
+            else if (currentState == UIState.@default){
                 countdownText.text = "New game in: ";
             }
             countdownText.text += currentCountdown.ToString();
@@ -665,8 +654,7 @@ public class GameManager : MonoBehaviour
         votingPanel.SetActive(false);
         votingResultsPanel.SetActive(false);
 
-        if (state == UIState.prompt)
-        {
+        if (state == UIState.prompt){
             promptPanel.SetActive(true);
         }
         else if (state == UIState.voting)

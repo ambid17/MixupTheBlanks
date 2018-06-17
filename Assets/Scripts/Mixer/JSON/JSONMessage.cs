@@ -14,13 +14,15 @@ public class JSONMessage {
 
     [SerializeField]
     Parameters @params;
+	
     public JSONMessage(MethodType methodType, Parameters parameters)
     {
         method = methodType.ToString();
         @params = parameters;
     }
+	
 
-    public string SaveToString()
+	public string SaveToString()
     {
         return JsonUtility.ToJson(this);
     }

@@ -23,8 +23,8 @@ public class Control
         this.controlID = controlID;
         this.text = text;
         this.position = new Position[] {
-            new Position("small", position.width, position.height, position.x, position.y)
-            , new Position("medium", position.width, position.height, position.x, position.y)
+            new Position("Small", position.width, position.height, position.x, position.y)
+            , new Position("Medium", position.width, position.height, position.x, position.y)
             , position };
     }
 }
