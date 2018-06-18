@@ -1,0 +1,89 @@
+void CreateButton() {
+		Debug.Log("Clicked create button");
+		Position position = new Position("large", 5, 5, 0, 0);
+		Position[] positions = new Position[1];
+		positions[0] = position;
+		Controls control = new Controls("new_button", "button", "NewButton", 0, false, positions);
+		Controls[] controls = new Controls[1];
+		controls[0] = control;
+		Parameters @params = new Parameters("default", controls);
+		JSONMessage message = new JSONMessage("method", 123, "createControls", @params);
+		Debug.Log(message.ToString());
+		MixerInteractive.SendInteractiveMessage(JsonUtility.ToJson(message));
+
+	}
+
+	[System.Serializable]
+	public class JSONMessage {
+		[SerializeField]
+		string type;
+		[SerializeField]
+		int id;
+		[SerializeField]
+		string method;
+		[SerializeField]
+		Parameters @params;
+		
+		public JSONMessage(string type, int id, string method, Parameters @params) {
+			this.type = type;
+			this.id = id;
+			this.method = method;
+			this.@params = @params;
+		}
+	}
+	[System.Serializable]
+	public class Parameters {
+		[SerializeField]
+		string sceneID;
+		[SerializeField]
+		Controls[] controls;
+		public Parameters(string sceneID, Controls[] controls) {
+			this.sceneID = sceneID;
+			this.controls = controls;
+		}
+	}
+	[System.Serializable]
+	public class Controls {
+		[SerializeField]
+		string controlID;
+		[SerializeField]
+		string kind;
+		[SerializeField]
+		string text;
+		[SerializeField]
+		int cost;
+		[SerializeField]
+		bool disabled;
+		[SerializeField]
+		Position[] position;
+
+		public Controls(string controlID, string kind, string text, int cost, bool disabled, Position[] position) {
+			this.controlID = controlID;
+			this.kind = kind;
+			this.text = text;
+			this.cost = cost;
+			this.disabled = disabled;
+			this.position = position;
+		}
+	}
+	[System.Serializable]
+	public class Position {
+		[SerializeField]
+		string size;
+		[SerializeField]
+		int width;
+		[SerializeField]
+		int height;
+		[SerializeField]
+		int x;
+		[SerializeField]
+		int y;
+
+		public Position(string size, int width, int height, int x, int y) {
+			this.size = size;
+			this.width = width;
+			this.height = height;
+			this.x = x;
+			this.y = y;
+		}
+	}
