@@ -15,6 +15,8 @@ public class Player {
     public string answer;
     [SerializeField]
     public string vote;
+    [SerializeField]
+    public string currentScene;
 
     public Player(string playerName)
     {
@@ -23,5 +25,6 @@ public class Player {
         overallScore = 0;
         answer = "";
         vote = "";
+        currentScene = "";
     }
 }

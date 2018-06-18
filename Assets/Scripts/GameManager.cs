@@ -35,10 +35,11 @@ public class GameManager : MonoBehaviour
     public GameObject topScoreText;
     public GameObject topScoreOverallText;
 
-    public List<MixerButton> answerButtons;
+    public List<MixerButton> playersWhoResponded;
     public MixerInput mixerInput;
     [SerializeField]
     public List<MixerScene> mixerScenes;
+    public MixerSceneHolder mixerSceneHolder;
     #endregion
 
     #region Logic Variables
@@ -62,6 +63,11 @@ public class GameManager : MonoBehaviour
     public enum UIState
     {
         prompt, voting, @default
+    }
+
+    public enum MethodType
+    {
+        createControls, deleteControls, createScenes, deleteScene, onSceneDelete
     }
     #endregion
 
@@ -100,11 +106,12 @@ public class GameManager : MonoBehaviour
     //TODO: reset text after use (so that the second time around the input isn't there
     void CheckTextEvents(object sender, InteractiveTextEventArgs e)
     {
-        if(e.ControlID == "Input")
+        if(e.ControlID == "textbox")
         {
             Player player = GetPlayerByName(e.Participant.UserName);
             player.answer = e.Text;
-            e.Participant.Group = MixerInteractive.GetGroup("default");
+            InteractiveGroup group = MixerInteractive.GetGroup("default");
+            e.Participant.Group = group;
         }
     }
 
@@ -128,7 +135,6 @@ public class GameManager : MonoBehaviour
                     Player playerToAddScore = GetPlayerForControlID(controlID);
                     playerToAddScore.currentScore++;
                     playerToAddScore.overallScore++;
-                    
                     e.Participant.Group = MixerInteractive.GetGroup("default");
                 }
             }
@@ -137,6 +143,8 @@ public class GameManager : MonoBehaviour
 
     IEnumerator Run()
     {
+        yield return new WaitForSeconds(1);
+
         while (true)
         {
             PromptPhase();
@@ -230,28 +238,24 @@ public class GameManager : MonoBehaviour
     }
 
     void DeleteInputMessage(){
-        Parameters parameters = new DeleteControlsParams("prompt", new string[] { "Input" });
+        DeleteControlsParams parameters = new DeleteControlsParams("prompt", new string[] { "textbox" });
 
-        //JSONMessage message = new JSONMessage(JSONMessage.MethodType.deleteControls, parameters);
+        JSONDeleteControls message = new JSONDeleteControls(MethodType.deleteControls, parameters);
 
-        //SendJSONMessage(message);
+        SendDeleteControlsMessage(message);
     }
 
     void CreateInputMessage(){
-        List<string> controlIDs = new List<string>() { "Input" };
-        List<string> texts = new List<string>() {"Input answer"};
-        Position[] positions = new Position[] {new Position(mixerInput.position.size, mixerInput.position.width, mixerInput.position.height, mixerInput.position.x, mixerInput.position.x)};
-
         ControlsParams parameters = new ControlsParams("prompt"
-            , "input"
-            , new List<string>() { "input" }
-            , new List<string>() { "input" }
-            , new Position[] {new Position("Large", 5,5,1,1)}
+            , "textbox"
+            , new List<string>() { "textbox" }
+            , new List<string>() { "textbox" }
+            , new Position[] {new Position("large", 30,15,1,1)}
             );
 
-        JSONMessage1 message = new JSONMessage1(JSONMessage1.MethodType.createControls, parameters);
+        JSONCreateControls message = new JSONCreateControls(MethodType.createControls, parameters);
 		
-        SendJSONMessage1(message);
+        SendCreateControlsMessage(message);
     }
     #endregion
 
@@ -263,22 +267,13 @@ public class GameManager : MonoBehaviour
         CreateMixerButtons();
         CreateMixerScenes();
         CreateScenesMessage();
+        SetPlayerScenes();
     }
     
     void CreateMixerButtons()
     {
-        List<Player> playersWhoResponded = GetPlayersWhoResponded();
-        answerButtons = new List<MixerButton>();
-
-        if (playersWhoResponded.Count > 0)
-        {
-            foreach (Player player in playersWhoResponded)
-            {
-                MixerButton newButton = new MixerButton(player);
-                answerButtons.Add(newButton);
-            }
-        }
-        else
+        playersWhoResponded = GetPlayersWhoResponded();
+        if(playersWhoResponded.Count == 0)
         {
             votingText.text = "No one answered :(";
         }
@@ -286,12 +281,13 @@ public class GameManager : MonoBehaviour
 
     void CreateMixerScenes()
     {
-        mixerScenes = new List<MixerScene>();
+        mixerSceneHolder = new MixerSceneHolder();
         
         int buttonsPerScene = buttonsPerColumn * buttonsPerRow;
         
         foreach(Player player in players)
         {
+            List<MixerScene> scenesForPlayer = new List<MixerScene>();
             List<MixerButton> buttons = GetShuffledMixerButtons(player);
             int numberOfScenes = (buttons.Count / buttonsPerScene) + 1;
 
@@ -312,47 +308,53 @@ public class GameManager : MonoBehaviour
                         else if (currentIndex < buttons.Count)
                         {
                             MixerButton button = buttons[currentIndex];
-                            button.position = new Position("Large", x * buttonWidth, y * buttonHeight, buttonWidth, buttonHeight);
+                            button.position = new Position("large", buttonWidth, buttonHeight, x * buttonWidth, y * buttonHeight);
                             button.scene = scene;
                             newScene.buttons.Add(button);
                         }
                     }
                 }
-                mixerScenes.Add(newScene);
+                scenesForPlayer.Add(newScene);
             }
+            mixerSceneHolder.AddSceneList(player.playerName, scenesForPlayer);
         }
         SetSceneTraversal();
     }
 
     void SetSceneTraversal()
     {
-        for(int i = 0; i < mixerScenes.Count; i++)
+        foreach(Player player in players)
         {
-            if (i == 0)
+            List<MixerScene> scenes = mixerSceneHolder.GetScenesForPlayer(player.playerName);
+            for (int i = 0; i < scenes.Count; i++)
             {
-                mixerScenes[i].previousScene = null;
-                if(mixerScenes.Count > 1)
+                if (i == 0)
                 {
-                    mixerScenes[i].nextScene = mixerScenes[i + 1];
+                    scenes[i].previousScene = null;
+                    if (scenes.Count > 1)
+                    {
+                        scenes[i].nextScene = scenes[i + 1];
+                    }
                 }
-            }
-            else if (i > 0 && i < mixerScenes.Count-1)
-            {
-                mixerScenes[i].previousScene = mixerScenes[i - 1];
-                mixerScenes[i].nextScene = mixerScenes[i + 1];
-            }
-            else if(i > 0 && i == mixerScenes.Count-1)
-            {
-                mixerScenes[i].previousScene = mixerScenes[i - 1];
-                mixerScenes[i].nextScene = null;
+                else if (i > 0 && i < scenes.Count - 1)
+                {
+                    scenes[i].previousScene = scenes[i - 1];
+                    scenes[i].nextScene = scenes[i + 1];
+                }
+                else if (i > 0 && i == scenes.Count - 1)
+                {
+                    scenes[i].previousScene = scenes[i - 1];
+                    scenes[i].nextScene = null;
+                }
             }
         }
     }
 
     void CreateScenesMessage()
     {
+        AddScenesToMixerScenes();
         ControlsParams[] controlsParams = new ControlsParams[mixerScenes.Count];
-
+        
         foreach(MixerScene scene in mixerScenes)
         {
             AddSceneChangeButtons(scene);
@@ -370,24 +372,47 @@ public class GameManager : MonoBehaviour
             
         }
 
-        Parameters parameters = new CreateScenesParams(controlsParams);
-       // JSONMessage message = new JSONMessage(JSONMessage.MethodType.createScenes, parameters);
+        CreateScenesParams parameters = new CreateScenesParams(controlsParams);
+        JSONCreateScene message = new JSONCreateScene(MethodType.createScenes, parameters);
 
-       // SendJSONMessage(message);
+        SendCreateScenesMessage(message);
+    }
+
+    void AddScenesToMixerScenes()
+    {
+        mixerScenes = mixerSceneHolder.GetSceneList();
     }
     
     void AddSceneChangeButtons(MixerScene scene)
     {
-        MixerButton backButton = new MixerButton(scene.player);
-        backButton.position = new Position("Large", 16, 16, 4, 4);
-        backButton.scene = scene.sceneID;
+        if(scene.previousScene != null)
+        {
+            MixerButton backButton = new MixerButton(scene.player);
+            backButton.position = new Position("large", 16, 16, 4, 4);
+            backButton.player = new Player("back");
+            backButton.player.answer = "<<";
+            backButton.scene = scene.sceneID;
+            scene.buttons.Add(backButton);
+        }
+        
+        if(scene.nextScene != null)
+        {
+            MixerButton nextButton = new MixerButton(scene.player);
+            nextButton.position = new Position("large", 20, 16, 4, 4);
+            nextButton.player = new Player("next");
+            nextButton.player.answer = ">>";
+            nextButton.scene = scene.sceneID;
+            scene.buttons.Add(nextButton);
+        }
+    }
 
-        MixerButton nextButton = new MixerButton(scene.player);
-        nextButton.position = new Position("Large", 20, 16, 4, 4);
-        nextButton.scene = scene.sceneID;
-
-        scene.buttons.Add(backButton);
-        scene.buttons.Add(nextButton);
+    void SetPlayerScenes()
+    {
+        foreach(Player player in players)
+        {
+            InteractiveParticipant participant = GetParticipant(player.playerName);
+            participant.Group = MixerInteractive.GetGroup(player.playerName + "0");
+        }
     }
     #endregion
 
@@ -468,13 +493,13 @@ public class GameManager : MonoBehaviour
         players = players.OrderBy(player => player.overallScore).ToList();
     }
 
-    List<Player> GetPlayersWhoResponded()
+    List<MixerButton> GetPlayersWhoResponded()
     {
-        List<Player> responded = new List<Player>();
+        List<MixerButton> responded = new List<MixerButton>();
         foreach (Player player in players)
         {
             if (player.answer != "" && player.answer != null)
-                responded.Add(player);
+                responded.Add(new MixerButton(player));
         }
 
         return responded;
@@ -505,7 +530,6 @@ public class GameManager : MonoBehaviour
     void CheckPlayers()
     {
         List<InteractiveParticipant> participants = GetAllParticipants();
-        Debug.Log("numPlayers: " + participants.Count);
         foreach (InteractiveParticipant participant in participants)
         {
             if (participant.State == InteractiveParticipantState.Joined)
@@ -565,7 +589,6 @@ public class GameManager : MonoBehaviour
     {
         InteractiveGroup groupToPut = MixerInteractive.GetGroup(group);
         List<InteractiveParticipant> participants = GetAllParticipants();
-		Debug.Log(group);
         foreach (InteractiveParticipant participant in participants)
         {
             if(participant.Group != groupToPut && participant.State.Equals(InteractiveParticipantState.Joined))
@@ -594,18 +617,30 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region UIUtilities
-    public void SendJSONMessage(JSONMessage JSONmessage){
+    public void SendDeleteControlsMessage(JSONDeleteControls JSONmessage){
         string message = JSONmessage.SaveToString();
         Debug.Log("JSONMESSAGE: " + message);
         MixerInteractive.SendInteractiveMessage(message);
     }
-	public void SendJSONMessage1(JSONMessage1 JSONmessage) {
+	public void SendCreateControlsMessage(JSONCreateControls JSONmessage) {
 		string message = JSONmessage.SaveToString();
 		Debug.Log("JSONMESSAGE: " + message);
 		MixerInteractive.SendInteractiveMessage(message);
 	}
-	public List<MixerButton> GetShuffledMixerButtons(Player player){
-        List<MixerButton> list = answerButtons;
+    public void SendCreateScenesMessage(JSONCreateScene JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendDeleteScenesMessage(JSONDeleteScene JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public List<MixerButton> GetShuffledMixerButtons(Player player){
+        List<MixerButton> list = playersWhoResponded;
         var random = new System.Random();
         IOrderedEnumerable<MixerButton> result = list.OrderBy(item => random.Next());
         List<MixerButton> randomizedList = result.ToList();
@@ -647,8 +682,8 @@ public class GameManager : MonoBehaviour
     {
         currentState = state;
         countDownTimer = 10;
-        MixerInteractive.SetCurrentScene(state.ToString());
-        PutAllIntoGroup(state.ToString());
+        string stateString = state.ToString();
+        PutAllIntoGroup(stateString);
 
         promptPanel.SetActive(false);
         votingPanel.SetActive(false);

@@ -22,9 +22,6 @@ public class Control
         this.kind = kind;
         this.controlID = controlID;
         this.text = text;
-        this.position = new Position[] {
-            new Position("Small", position.width, position.height, position.x, position.y)
-            , new Position("Medium", position.width, position.height, position.x, position.y)
-            , position };
+        this.position = new Position[] { position };
     }
 }

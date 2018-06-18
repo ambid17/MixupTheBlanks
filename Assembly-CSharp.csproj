@@ -99,6 +99,10 @@
     <Compile Include="Assets\MixerInteractive\Source\Scripts\MixerInteractiveDialog.cs" />
     <Compile Include="Assets\MixerInteractive\Source\Scripts\MixerInteractiveHelper.cs" />
     <Compile Include="Assets\Scripts\GameManager.cs" />
+    <Compile Include="Assets\Scripts\Mixer\JSON\JSONCreateControls.cs" />
+    <Compile Include="Assets\Scripts\Mixer\JSON\JSONCreateScene.cs" />
+    <Compile Include="Assets\Scripts\Mixer\JSON\JSONDeleteControls.cs" />
+    <Compile Include="Assets\Scripts\Mixer\JSON\JSONDeleteScene.cs" />
     <Compile Include="Assets\Scripts\Mixer\JSON\JSONMessage.cs" />
     <Compile Include="Assets\Scripts\Mixer\JSON\Params\Control.cs" />
     <Compile Include="Assets\Scripts\Mixer\JSON\Params\ControlsParams.cs" />
@@ -113,6 +117,7 @@
     <Compile Include="Assets\Scripts\Mixer\MixerExtensions.cs" />
     <Compile Include="Assets\Scripts\Mixer\MixerInput.cs" />
     <Compile Include="Assets\Scripts\Mixer\MixerScene.cs" />
+    <Compile Include="Assets\Scripts\Mixer\MixerSceneHolder.cs" />
     <Compile Include="Assets\Scripts\Mixer\Player.cs" />
     <None Include="Assets\MixerInteractive\Readme.txt" />
     <None Include="Assets\StreamingAssets\TextPrompts\prompts.txt" />
