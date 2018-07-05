@@ -110,32 +110,36 @@ public class GameManager : MonoBehaviour
         {
             Player player = GetPlayerByName(e.Participant.UserName);
             player.answer = e.Text;
-            InteractiveGroup group = MixerInteractive.GetGroup("default");
-            e.Participant.Group = group;
+            SetParticipantGroup(e.Participant, "default");
         }
     }
 
-    //TODO: once a user votes change them to default
+    //TODO: get control custom property of next/previous scene
     void CheckButtonPresses(object sender, InteractiveButtonEventArgs e)
     {
         if(currentState == UIState.voting)
         {
             Debug.Log("button pressed");
             string controlID = e.ControlID;
-            if(controlID == ">>")
+            
+            if (controlID == ">>")
             {
-                //e.Participant.Group = nextScene
-            }else if (controlID == "<<")
+                //string nextScene = GetNextSceneForControlID(controlID);
+                //SetParticipantGroup(e.Participant, nextScene);
+            }
+            else if (controlID == "<<")
             {
-                //e.Participant.Group = lastScene
-            }else
+                //string prevScene = GetNextSceneForControlID(controlID);
+                //SetParticipantGroup(e.Participant, prevScene);
+            }
+            else
             {
                 if (e.IsPressed)
                 {
                     Player playerToAddScore = GetPlayerForControlID(controlID);
                     playerToAddScore.currentScore++;
                     playerToAddScore.overallScore++;
-                    e.Participant.Group = MixerInteractive.GetGroup("default");
+                    SetParticipantGroup(e.Participant, "default");
                 }
             }
         }
@@ -267,7 +271,7 @@ public class GameManager : MonoBehaviour
         CreateMixerButtons();
         CreateMixerScenes();
         CreateScenesMessage();
-        SetPlayerScenes();
+        SetPlayerDefaultScenes();
     }
     
     void CreateMixerButtons()
@@ -406,12 +410,35 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void SetPlayerScenes()
+    void SetPlayerDefaultScenes()
     {
         foreach(Player player in players)
         {
             InteractiveParticipant participant = GetParticipant(player.playerName);
-            participant.Group = MixerInteractive.GetGroup(player.playerName + "0");
+            string scene = GetDefaultSceneForPlayer(player.playerName);
+            if (scene != null)
+            {
+                participant.Group = MixerInteractive.GetGroup(player.playerName + "0");
+            }
+            else
+            {
+                participant.Group = MixerInteractive.GetGroup("default");
+            }
+            
+        }
+    }
+
+    string GetDefaultSceneForPlayer(string playerName)
+    {
+        string defaultSceneID = playerName + "0";
+        List<MixerScene> defaultScene = mixerScenes.Where(scene => scene.sceneID == defaultSceneID).ToList();
+        if (defaultScene.Count > 0)
+        {
+            return defaultScene[0].sceneID;
+        }
+        else
+        {
+            return null;
         }
     }
     #endregion
@@ -585,14 +612,23 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region GroupUtilities
+    void SetParticipantGroup(InteractiveParticipant participant, string groupName)
+    {
+        InteractiveGroup group = MixerInteractive.GetGroup(groupName);
+        participant.Group = group;
+
+        Player player = GetPlayerByName(participant.UserName);
+        player.currentScene = groupName;
+    }
+
     void PutAllIntoGroup(string group)
     {
         InteractiveGroup groupToPut = MixerInteractive.GetGroup(group);
         List<InteractiveParticipant> participants = GetAllParticipants();
         foreach (InteractiveParticipant participant in participants)
         {
-            if(participant.Group != groupToPut && participant.State.Equals(InteractiveParticipantState.Joined))
-                participant.Group = groupToPut;
+            if (participant.Group != groupToPut && participant.State.Equals(InteractiveParticipantState.Joined))
+                SetParticipantGroup(participant, groupToPut.GroupID);
         }
     }
 
@@ -666,7 +702,7 @@ public class GameManager : MonoBehaviour
                 countdownText.text = "Make us laugh: ";
             }
             else if (currentState == UIState.voting){
-                countdownText.text = "";
+                countdownText.text = "Pick your favorite";
             }
             else if (currentState == UIState.@default){
                 countdownText.text = "New game in: ";
@@ -682,8 +718,7 @@ public class GameManager : MonoBehaviour
     {
         currentState = state;
         countDownTimer = 10;
-        string stateString = state.ToString();
-        PutAllIntoGroup(stateString);
+        PutAllIntoGroup(state.ToString());
 
         promptPanel.SetActive(false);
         votingPanel.SetActive(false);

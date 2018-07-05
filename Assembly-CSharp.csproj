@@ -121,6 +121,7 @@
     <Compile Include="Assets\Scripts\Mixer\Player.cs" />
     <None Include="Assets\MixerInteractive\Readme.txt" />
     <None Include="Assets\StreamingAssets\TextPrompts\prompts.txt" />
+    <None Include="Assets\Scripts\JSONExmaple.txt" />
     <None Include="Assets\MixerInteractive\Examples\Groups\Instructions.txt" />
     <None Include="Assets\MixerInteractive\Examples\Throttling input, disabling and setting progress\Instructions.txt" />
     <None Include="Assets\MixerInteractive\Source\DLLs\UWP\Newtonsoft.Json.xml" />

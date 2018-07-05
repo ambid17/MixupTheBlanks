@@ -15,7 +15,7 @@ public class JSONMessage {
     [SerializeField]
     Parameters @params;
 
-    public JSONMessage(MethodType methodType, Parameters parameters){
+    public JSONMessage(GameManager.MethodType methodType, Parameters parameters){
         method = methodType.ToString();
         @params = parameters;
     }
