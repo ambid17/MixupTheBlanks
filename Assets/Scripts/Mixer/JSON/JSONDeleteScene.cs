@@ -4,7 +4,7 @@ using UnityEngine;
 using System;
 
 [Serializable]
-public class JSONDeleteScene : MonoBehaviour {
+public class JSONDeleteScene {
     [SerializeField]
     string type = "method";
     [SerializeField]

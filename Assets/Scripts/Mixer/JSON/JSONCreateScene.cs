@@ -4,7 +4,7 @@ using UnityEngine;
 using System;
 
 [Serializable]
-public class JSONCreateScene : MonoBehaviour {
+public class JSONCreateScene {
     [SerializeField]
     string type = "method";
     [SerializeField]

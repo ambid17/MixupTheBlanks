@@ -50,6 +50,13 @@ public class GameManager : MonoBehaviour
     int buttonsPerColumn = 2;
     int buttonWidth = 10;
     int buttonHeight = 8;
+    bool isFirstRun = true;
+    #endregion
+
+    #region Mixer Listeners
+    bool hasInput = false;
+    bool hasScenes = false;
+    bool hasGroups = false;
     #endregion
 
     #endregion
@@ -67,7 +74,7 @@ public class GameManager : MonoBehaviour
 
     public enum MethodType
     {
-        createControls, deleteControls, createScenes, deleteScene, onSceneDelete
+        deleteGroup, deleteScene, createControls, deleteControls, createScenes, onSceneDelete, createGroups
     }
     #endregion
 
@@ -86,6 +93,7 @@ public class GameManager : MonoBehaviour
         {
             MixerInteractive.OnInteractiveTextControlEvent += CheckTextEvents;
             MixerInteractive.OnInteractiveButtonEvent += CheckButtonPresses;
+            MixerInteractive.OnInteractiveMessageEvent += ListenForMessages;
 
             players = new List<Player>();
 
@@ -166,7 +174,27 @@ public class GameManager : MonoBehaviour
     }
     #endregion
 
-    //TODO create JSON to create empty input box with submit button
+    #region Message Listening
+    void ListenForMessages(object send, InteractiveMessageEventArgs e)
+    {
+        string message = e.Message;
+        if (message.Contains("\"method\":\"onControlCreate\"") && message.Contains("\"sceneID\":\"prompt\""))
+        {
+            hasInput = true;
+        }
+
+        if (message.Contains("onSceneCreate"))
+        {
+            hasScenes = true;
+        }
+
+        if (message.Contains("onGroupCreate"))
+        {
+            hasGroups = true;
+        }
+    }
+    #endregion
+
     #region PromptPhase
     void PromptPhase(){
         Clean();
@@ -175,78 +203,61 @@ public class GameManager : MonoBehaviour
         CreateInput();
     }
 
-    void SetupPrompt()
+    void Clean()
     {
-        PromptType promptType = getPromptType();
-        if (promptType == PromptType.image){
-            textPrompt.SetActive(false);
-            imagePrompt.SetActive(true);
-            Sprite prompt = imagePrompts[UnityEngine.Random.Range(0, imagePrompts.Count)];
-            imagePrompt.GetComponent<Image>().sprite = prompt;
-        }
-        else if (promptType == PromptType.text)
+        StartCoroutine(DeleteInputMessage());
+        CleanScoresAndAnswers();
+        CleanGroupsAndScenes();
+    }
+    IEnumerator DeleteInputMessage()
+    {
+        if (!isFirstRun)
         {
-            textPrompt.SetActive(true);
-            imagePrompt.SetActive(false);
-            string prompt = textPrompts[UnityEngine.Random.Range(0, textPrompts.Count)];
-            Text text = textPrompt.GetComponent<Text>();
-            text.text = prompt;
+            yield return new WaitUntil(() => hasInput == true);
+
+            DeleteControlsParams parameters = new DeleteControlsParams("prompt", new string[] { "textbox" });
+            JSONDeleteControls message = new JSONDeleteControls(MethodType.deleteControls, parameters);
+            SendDeleteControlsMessage(message);
+
+            hasInput = false;
         }
-    }
-
-    PromptType getPromptType(){
-        Array promptValues = System.Enum.GetValues(typeof(PromptType));
-        System.Random random = new System.Random();
-        return (PromptType)promptValues.GetValue(random.Next(promptValues.Length));
-    }
-
-    void GetPrompts()
-    {
-        GetImagePrompts();
-        GetTextPrompts();
-    }
-
-    void GetImagePrompts()
-    {
-        string searchPattern = "*.jpg, *.png";
-        string[] sp = searchPattern.Split(',');
-        foreach (string pattern in sp)
+        else
         {
-            foreach (string file in Directory.GetFiles("Assets/Resources", pattern))
+            yield return null;
+            isFirstRun = false;
+        }
+        
+    }
+
+    void CleanGroupsAndScenes()
+    {
+        IList<InteractiveGroup> groups = MixerInteractive.Groups;
+        foreach(InteractiveGroup group in groups)
+        {
+            if(group.GroupID != "default" && group.GroupID != "prompt")
             {
-                string[] splitFileNames = file.Split('\\');
-                string[] splitFileFromExtension = splitFileNames[splitFileNames.Length - 1].Split('.');
-                imagePrompts.Add(Resources.Load<Sprite>(splitFileFromExtension[0]));
+                DeleteGroupsParams parameters = new DeleteGroupsParams(group.GroupID, "default");
+                JSONDeleteGroup message = new JSONDeleteGroup(MethodType.deleteGroup, parameters);
+                SendDeleteGroupMessage(message);
+            }
+        }
+
+        IList<InteractiveScene> scenes = MixerInteractive.Scenes;
+        foreach (InteractiveScene scene in scenes)
+        {
+            if (scene.SceneID != "default" && scene.SceneID != "prompt")
+            {
+                DeleteSceneParams parameters = new DeleteSceneParams(scene.SceneID, "default");
+                JSONDeleteScene message = new JSONDeleteScene(MethodType.deleteScene, parameters);
+                SendDeleteSceneMessage(message);
             }
         }
     }
-
-    void GetTextPrompts()
-    {
-        string text = File.ReadAllText(Path.Combine(Path.Combine(Application.streamingAssetsPath, "TextPrompts"), "prompts.txt"));
-        string[] splitText = text.Split(new string[] { System.Environment.NewLine }, StringSplitOptions.None);
-        foreach (string prompt in splitText)
-        {
-            textPrompts.Add(prompt + " ____.");
-        }
-    }
-
-    void Clean(){
-        CleanScoresAndAnswers();
-        DeleteInputMessage();
-    }
-
+    
+    
     void CreateInput(){
         mixerInput = new MixerInput("prompt", 1,1,5,5);
         CreateInputMessage();
-    }
-
-    void DeleteInputMessage(){
-        DeleteControlsParams parameters = new DeleteControlsParams("prompt", new string[] { "textbox" });
-
-        JSONDeleteControls message = new JSONDeleteControls(MethodType.deleteControls, parameters);
-
-        SendDeleteControlsMessage(message);
     }
 
     void CreateInputMessage(){
@@ -271,7 +282,7 @@ public class GameManager : MonoBehaviour
         CreateMixerButtons();
         CreateMixerScenes();
         CreateScenesMessage();
-        SetPlayerDefaultScenes();
+        StartCoroutine(CreateGroupsMessage());
     }
     
     void CreateMixerButtons()
@@ -379,7 +390,34 @@ public class GameManager : MonoBehaviour
         CreateScenesParams parameters = new CreateScenesParams(controlsParams);
         JSONCreateScene message = new JSONCreateScene(MethodType.createScenes, parameters);
 
+        hasScenes = false;
         SendCreateScenesMessage(message);
+    }
+
+    IEnumerator CreateGroupsMessage()
+    {
+        Group[] groups = new Group[mixerScenes.Count];
+
+        foreach (MixerScene scene in mixerScenes)
+        {
+            groups[mixerScenes.IndexOf(scene)] = new Group(scene.sceneID, scene.sceneID);
+        }
+
+        CreateGroupsParams parameters = new CreateGroupsParams(groups);
+        JSONCreateGroups message = new JSONCreateGroups(MethodType.createGroups, parameters);
+
+        //while (!hasScenes)
+        //{
+        //    yield return null;
+        //}
+
+        yield return new WaitUntil(() => hasScenes == true);
+        yield return new WaitForSeconds(0.1f);
+        hasGroups = false;
+        SendCreateGroupsMessage(message);
+        hasScenes = false;
+
+        StartCoroutine(SetPlayerDefaultScenes());
     }
 
     void AddScenesToMixerScenes()
@@ -410,22 +448,30 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void SetPlayerDefaultScenes()
+    IEnumerator SetPlayerDefaultScenes()
     {
-        foreach(Player player in players)
+        Debug.Log("set player default scenes");
+        //while (!hasGroups)
+        //{
+        //    yield return null;
+        //}
+        yield return new WaitUntil(() => hasGroups == true);
+        yield return new WaitForSeconds(0.5f);
+        hasGroups = false;
+
+        IList<InteractiveGroup> groups = MixerInteractive.Groups;
+        IList<InteractiveParticipant> parts = MixerInteractive.Participants;
+        IList<InteractiveScene> se = MixerInteractive.Scenes;
+        foreach (Player player in players)
         {
             InteractiveParticipant participant = GetParticipant(player.playerName);
-            string scene = GetDefaultSceneForPlayer(player.playerName);
-            if (scene != null)
-            {
-                participant.Group = MixerInteractive.GetGroup(player.playerName + "0");
-            }
-            else
-            {
-                participant.Group = MixerInteractive.GetGroup("default");
-            }
-            
+            InteractiveGroup group = MixerInteractive.GetGroup(player.playerName + "0");
+            participant.Group = group;
         }
+
+        IList<InteractiveGroup> groups1 = MixerInteractive.Groups;
+        IList<InteractiveParticipant> parts1 = MixerInteractive.Participants;
+        IList<InteractiveScene> se1 = MixerInteractive.Scenes;
     }
 
     string GetDefaultSceneForPlayer(string playerName)
@@ -561,7 +607,6 @@ public class GameManager : MonoBehaviour
         {
             if (participant.State == InteractiveParticipantState.Joined)
             {
-                Debug.Log(participant.UserName + " joined");
                 IEnumerable<Player> playerMatches = players.Where(p => p.playerName == participant.UserName);
 
                 var count = playerMatches.Count();
@@ -574,7 +619,6 @@ public class GameManager : MonoBehaviour
             }
             else if (participant.State == InteractiveParticipantState.Left)
             {
-                Debug.Log(participant.UserName + " left");
                 foreach (Player player in players.ToList())
                 {
                     if (player.playerName == participant.UserName)
@@ -600,7 +644,31 @@ public class GameManager : MonoBehaviour
 
         return null;
     }
-    
+
+    public List<MixerButton> GetShuffledMixerButtons(Player player)
+    {
+        List<MixerButton> list = playersWhoResponded;
+        var random = new System.Random();
+        IOrderedEnumerable<MixerButton> result = list.OrderBy(item => random.Next());
+        List<MixerButton> randomizedList = result.ToList();
+
+        MixerButton buttonToRemove = null;
+        foreach (MixerButton button in randomizedList)
+        {
+            if (button.player.playerName == player.playerName)
+            {
+                buttonToRemove = button;
+            }
+        }
+
+        if (buttonToRemove != null)
+        {
+            randomizedList.Remove(buttonToRemove);
+        }
+
+        return randomizedList;
+    }
+
     void CleanScoresAndAnswers()
     {
         foreach(Player player in players)
@@ -635,17 +703,14 @@ public class GameManager : MonoBehaviour
     List<InteractiveParticipant> GetAllParticipants()
     {
         List<InteractiveParticipant> participants = new List<InteractiveParticipant>();
-        if (MixerInteractive.GetGroup("default").Participants != null)
+        
+        IList<InteractiveGroup> groups = MixerInteractive.Groups;
+        foreach(InteractiveGroup group in groups)
         {
-            participants.AddRange(MixerInteractive.GetGroup("default").Participants);
-        }
-        if (MixerInteractive.GetGroup("prompt") != null)
-        {
-            participants.AddRange(MixerInteractive.GetGroup("prompt").Participants);
-        }
-        if (MixerInteractive.GetGroup("voting") != null)
-        {
-            participants.AddRange(MixerInteractive.GetGroup("voting").Participants);
+            if(group.Participants.Count > 0)
+            {
+                participants.AddRange(group.Participants);
+            }
         }
 
         return participants;
@@ -653,48 +718,6 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region UIUtilities
-    public void SendDeleteControlsMessage(JSONDeleteControls JSONmessage){
-        string message = JSONmessage.SaveToString();
-        Debug.Log("JSONMESSAGE: " + message);
-        MixerInteractive.SendInteractiveMessage(message);
-    }
-	public void SendCreateControlsMessage(JSONCreateControls JSONmessage) {
-		string message = JSONmessage.SaveToString();
-		Debug.Log("JSONMESSAGE: " + message);
-		MixerInteractive.SendInteractiveMessage(message);
-	}
-    public void SendCreateScenesMessage(JSONCreateScene JSONmessage)
-    {
-        string message = JSONmessage.SaveToString();
-        Debug.Log("JSONMESSAGE: " + message);
-        MixerInteractive.SendInteractiveMessage(message);
-    }
-    public void SendDeleteScenesMessage(JSONDeleteScene JSONmessage)
-    {
-        string message = JSONmessage.SaveToString();
-        Debug.Log("JSONMESSAGE: " + message);
-        MixerInteractive.SendInteractiveMessage(message);
-    }
-    public List<MixerButton> GetShuffledMixerButtons(Player player){
-        List<MixerButton> list = playersWhoResponded;
-        var random = new System.Random();
-        IOrderedEnumerable<MixerButton> result = list.OrderBy(item => random.Next());
-        List<MixerButton> randomizedList = result.ToList();
-
-        MixerButton buttonToRemove = null;
-        foreach(MixerButton button in randomizedList){
-            if(button.player.playerName == player.playerName){
-                buttonToRemove = button;
-            }
-        }
-
-        if(buttonToRemove != null){
-            randomizedList.Remove(buttonToRemove);
-        }
-
-        return randomizedList;
-    }
-    
     IEnumerator CountdownTimer(int time){
         float currentCountdown = time;
         while (currentCountdown > 0){
@@ -718,22 +741,123 @@ public class GameManager : MonoBehaviour
     {
         currentState = state;
         countDownTimer = 10;
-        PutAllIntoGroup(state.ToString());
 
         promptPanel.SetActive(false);
         votingPanel.SetActive(false);
         votingResultsPanel.SetActive(false);
 
         if (state == UIState.prompt){
+            PutAllIntoGroup(state.ToString());
             promptPanel.SetActive(true);
         }
         else if (state == UIState.voting)
         {
+            PutAllIntoGroup("default");
             votingPanel.SetActive(true);
         }
         else if (state == UIState.@default)
-        { 
+        {
+            PutAllIntoGroup(state.ToString());
             votingResultsPanel.SetActive(true);
+        }
+    }
+    #endregion
+
+    #region JSONMessages
+    public void SendDeleteControlsMessage(JSONDeleteControls JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendCreateControlsMessage(JSONCreateControls JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendCreateScenesMessage(JSONCreateScene JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendCreateGroupsMessage(JSONCreateGroups JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendDeleteGroupMessage(JSONDeleteGroup JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    public void SendDeleteSceneMessage(JSONDeleteScene JSONmessage)
+    {
+        string message = JSONmessage.SaveToString();
+        Debug.Log("JSONMESSAGE: " + message);
+        MixerInteractive.SendInteractiveMessage(message);
+    }
+    #endregion
+
+    #region Prompting
+    void SetupPrompt()
+    {
+        PromptType promptType = getPromptType();
+        if (promptType == PromptType.image)
+        {
+            textPrompt.SetActive(false);
+            imagePrompt.SetActive(true);
+            Sprite prompt = imagePrompts[UnityEngine.Random.Range(0, imagePrompts.Count)];
+            imagePrompt.GetComponent<Image>().sprite = prompt;
+        }
+        else if (promptType == PromptType.text)
+        {
+            textPrompt.SetActive(true);
+            imagePrompt.SetActive(false);
+            string prompt = textPrompts[UnityEngine.Random.Range(0, textPrompts.Count)];
+            Text text = textPrompt.GetComponent<Text>();
+            text.text = prompt;
+        }
+    }
+
+    PromptType getPromptType()
+    {
+        Array promptValues = System.Enum.GetValues(typeof(PromptType));
+        System.Random random = new System.Random();
+        return (PromptType)promptValues.GetValue(random.Next(promptValues.Length));
+    }
+
+    void GetPrompts()
+    {
+        GetImagePrompts();
+        GetTextPrompts();
+    }
+
+    void GetImagePrompts()
+    {
+        string searchPattern = "*.jpg, *.png";
+        string[] sp = searchPattern.Split(',');
+        foreach (string pattern in sp)
+        {
+            foreach (string file in Directory.GetFiles("Assets/Resources", pattern))
+            {
+                string[] splitFileNames = file.Split('\\');
+                string[] splitFileFromExtension = splitFileNames[splitFileNames.Length - 1].Split('.');
+                imagePrompts.Add(Resources.Load<Sprite>(splitFileFromExtension[0]));
+            }
+        }
+    }
+
+    void GetTextPrompts()
+    {
+        string text = File.ReadAllText(Path.Combine(Path.Combine(Application.streamingAssetsPath, "TextPrompts"), "prompts.txt"));
+        string[] splitText = text.Split(new string[] { System.Environment.NewLine }, StringSplitOptions.None);
+        foreach (string prompt in splitText)
+        {
+            textPrompts.Add(prompt + " ____.");
         }
     }
     #endregion

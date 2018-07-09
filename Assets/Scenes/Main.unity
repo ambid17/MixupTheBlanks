@@ -455,22 +455,22 @@ Prefab:
     - target: {fileID: 114174615625054580, guid: e3d82ac56c3ea1f459a674ccc9c2622f,
         type: 2}
       propertyPath: groupIDs.Array.data[1]
-      value: voting
+      value: default
       objectReference: {fileID: 0}
     - target: {fileID: 114174615625054580, guid: e3d82ac56c3ea1f459a674ccc9c2622f,
         type: 2}
       propertyPath: sceneIDs.Array.data[1]
-      value: voting
+      value: default
       objectReference: {fileID: 0}
     - target: {fileID: 114174615625054580, guid: e3d82ac56c3ea1f459a674ccc9c2622f,
         type: 2}
       propertyPath: sceneIDs.Array.data[2]
-      value: voting
+      value: default
       objectReference: {fileID: 0}
     - target: {fileID: 114174615625054580, guid: e3d82ac56c3ea1f459a674ccc9c2622f,
         type: 2}
       propertyPath: groupIDs.Array.data[2]
-      value: voting
+      value: default
       objectReference: {fileID: 0}
     - target: {fileID: 114174615625054580, guid: e3d82ac56c3ea1f459a674ccc9c2622f,
         type: 2}
@@ -1200,7 +1200,7 @@ MonoBehaviour:
   votingResultsPanel: {fileID: 601631437}
   topScoreText: {fileID: 1346993076}
   topScoreOverallText: {fileID: 359423651}
-  answerButtons: []
+  playersWhoResponded: []
   mixerInput:
     position:
       size: 
