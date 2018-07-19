@@ -36,7 +36,6 @@ public class GameManager : MonoBehaviour
     public GameObject topScoreOverallText;
 
     public List<MixerButton> playersWhoResponded;
-    public MixerInput mixerInput;
     [SerializeField]
     public List<MixerScene> mixerScenes;
     public MixerSceneHolder mixerSceneHolder;
@@ -57,6 +56,7 @@ public class GameManager : MonoBehaviour
     bool hasInput = false;
     bool hasScenes = false;
     bool hasGroups = false;
+    int run = 0;
     #endregion
 
     #endregion
@@ -114,7 +114,7 @@ public class GameManager : MonoBehaviour
     //TODO: reset text after use (so that the second time around the input isn't there
     void CheckTextEvents(object sender, InteractiveTextEventArgs e)
     {
-        if(e.ControlID == "textbox")
+        if(e.ControlID == "textbox" + run)
         {
             Player player = GetPlayerByName(e.Participant.UserName);
             player.answer = e.Text;
@@ -170,6 +170,7 @@ public class GameManager : MonoBehaviour
             ScoringPhase();
             StartCoroutine(CountdownTimer(countDownTimer));
             yield return new WaitForSeconds(countDownTimer);
+            run++;
         }
     }
     #endregion
@@ -186,6 +187,7 @@ public class GameManager : MonoBehaviour
         if (message.Contains("onSceneCreate"))
         {
             hasScenes = true;
+            //string message1 = e.Message;
         }
 
         if (message.Contains("onGroupCreate"))
@@ -214,8 +216,7 @@ public class GameManager : MonoBehaviour
         if (!isFirstRun)
         {
             yield return new WaitUntil(() => hasInput == true);
-
-            DeleteControlsParams parameters = new DeleteControlsParams("prompt", new string[] { "textbox" });
+            DeleteControlsParams parameters = new DeleteControlsParams("prompt", new string[] { "textbox" + (run-1) });
             JSONDeleteControls message = new JSONDeleteControls(MethodType.deleteControls, parameters);
             SendDeleteControlsMessage(message);
 
@@ -232,9 +233,9 @@ public class GameManager : MonoBehaviour
     void CleanGroupsAndScenes()
     {
         IList<InteractiveGroup> groups = MixerInteractive.Groups;
-        foreach(InteractiveGroup group in groups)
+        foreach (InteractiveGroup group in groups)
         {
-            if(group.GroupID != "default" && group.GroupID != "prompt")
+            if (group.GroupID != "default" && group.GroupID != "prompt")
             {
                 DeleteGroupsParams parameters = new DeleteGroupsParams(group.GroupID, "default");
                 JSONDeleteGroup message = new JSONDeleteGroup(MethodType.deleteGroup, parameters);
@@ -253,24 +254,24 @@ public class GameManager : MonoBehaviour
             }
         }
     }
-    
-    
+
+
     void CreateInput(){
-        mixerInput = new MixerInput("prompt", 1,1,5,5);
         CreateInputMessage();
     }
 
     void CreateInputMessage(){
         ControlsParams parameters = new ControlsParams("prompt"
             , "textbox"
-            , new List<string>() { "textbox" }
-            , new List<string>() { "textbox" }
+            , new List<string>() { "textbox" + run }
+            , new List<string>() { "textbox" + run }
             , new Position[] {new Position("large", 30,15,1,1)}
             );
 
         JSONCreateControls message = new JSONCreateControls(MethodType.createControls, parameters);
 		
         SendCreateControlsMessage(message);
+        hasInput = false;
     }
     #endregion
 
